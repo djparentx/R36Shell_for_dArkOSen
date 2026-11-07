@@ -4060,8 +4060,17 @@ while running:
     background_color = make_color(theme["background"])
     renderer.clear(background_color)
     if background_texture and theme_settings.get("background_enabled", True):
+        tex_w = ctypes.c_int(0)
+        tex_h = ctypes.c_int(0)
+        sdl2.SDL_QueryTexture(background_texture, None, None, ctypes.byref(tex_w), ctypes.byref(tex_h))
+        crop_w, crop_h = tex_w.value, tex_h.value
+        if crop_w * SCREEN_HEIGHT > crop_h * SCREEN_WIDTH:
+            crop_w = crop_h * SCREEN_WIDTH // SCREEN_HEIGHT
+        else:
+            crop_h = crop_w * SCREEN_HEIGHT // SCREEN_WIDTH
+        srcrect = sdl2.SDL_Rect((tex_w.value - crop_w) // 2, (tex_h.value - crop_h) // 2, crop_w, crop_h)
         dstrect = sdl2.SDL_Rect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT)
-        sdl2.SDL_RenderCopy(renderer.sdlrenderer, background_texture, None, dstrect)
+        sdl2.SDL_RenderCopy(renderer.sdlrenderer, background_texture, srcrect, dstrect)
     keyboard_visible = theme_settings.get("show_keyboard", True)
     keyboard_y = SCREEN_HEIGHT - 190 if keyboard_visible else SCREEN_HEIGHT - 10
     
@@ -4249,7 +4258,7 @@ while running:
                         key_x = keyboard_start_x + 138
                         width = 320  # Large space bar
                     elif col_idx == 2:  # #+=/ABC toggle (far right)
-                        key_x = SCREEN_WIDTH - 70
+                        key_x = keyboard_start_x + 550
                         width = 48
                 else:
                     # Rows 1-4: Perfect 12-column grid

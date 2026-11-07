@@ -47,6 +47,24 @@ REAL_HOME="$(eval echo "~$REAL_USER")"
 VENV_DIR="${REAL_HOME}/terminal_venv"
 APP_SCRIPT="${SCRIPT_DIR}/Terminal/r36s_terminal.py"
 
+CONFIG_FILE="${SCRIPT_DIR}/Terminal/terminal_config.json"
+
+# --- Display Resolution Detection ---
+detect_resolution() {
+    local w="" h="" mode=""
+    [[ -f "$CONFIG_FILE" ]] || return 1
+    read -r w h <<< "$(fbset -s 2>/dev/null | awk '/geometry/ {print $2, $3; exit}')"
+    if ! [[ "$w" =~ ^[0-9]+$ && "$h" =~ ^[0-9]+$ ]]; then
+        mode="$(head -n 1 /sys/class/graphics/fb0/modes 2>/dev/null)"
+        mode="${mode#*:}"
+        mode="${mode%%[!0-9x]*}"
+        w="${mode%%x*}"
+        h="${mode#*x}"
+    fi
+    [[ "$w" =~ ^[0-9]+$ && "$h" =~ ^[0-9]+$ ]] || return 1
+    sed -i -E "s/(\"screen_width\": )[0-9]+/\1${w}/; s/(\"screen_height\": )[0-9]+/\1${h}/" "$CONFIG_FILE"
+}
+
 # --- UI + Cleanup ---
 exit_script() {
     printf "\033c" > "$CURR_TTY"
@@ -212,6 +230,8 @@ run_app() {
         dialog --title "Error" --msgbox "\nApp script not found at:\n${APP_SCRIPT}\n\nPlease ensure the repository is properly set up." 8 60 > "$CURR_TTY"
         return 1
     fi
+
+    detect_resolution
 
     dialog --title "Launching" --infobox "\nLaunching app as user: ${REAL_USER}\nPlease wait..." 7 60 > "$CURR_TTY"
     sleep 1
