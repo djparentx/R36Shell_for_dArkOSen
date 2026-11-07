@@ -80,6 +80,11 @@ exit_script() {
 
 # --- Installation Functions ---
 
+deps_ok() {
+    [[ -x "${VENV_DIR}/bin/python3" ]] || return 1
+    sudo -u "$REAL_USER" -H "${VENV_DIR}/bin/python3" -c "import sdl2, sdl2.sdlttf" > /dev/null 2>&1
+}
+
 install_dependencies() {
     # Create temporary files for tracking
     local output_file="/tmp/install_output_$$"
@@ -208,7 +213,7 @@ install_dependencies() {
         
         dialog --title "Installation Failed" \
                --backtitle "$BACKTITLE" \
-               --msgbox "\nInstallation failed!\n\nPlease check the error details above.\nPress OK to return to main menu." 9 60 > "$CURR_TTY"
+               --msgbox "\nInstallation failed!\n\nPlease check the error details above.\nPress OK to exit." 9 60 > "$CURR_TTY"
         
         # Cleanup temporary files
         rm -f "$output_file" "$error_file"
@@ -218,9 +223,6 @@ install_dependencies() {
     # Cleanup temporary files
     rm -f "$output_file" "$error_file"
     
-    dialog --title "Success" \
-           --backtitle "$BACKTITLE" \
-           --msgbox "\nAll dependencies installed successfully!\n\nVirtual environment created at:\n${VENV_DIR}\n\nPress OK to return to main menu." 10 70 > "$CURR_TTY"
 }
 
 run_app() {
@@ -252,60 +254,7 @@ run_app() {
         SDL_GAMECONTROLLERCONFIG_FILE="$SDL_GAMECONTROLLERCONFIG_FILE" \
         "${VENV_DIR}/bin/python3" "${APP_SCRIPT}"
 
-    # After app exits, restart this installer
-    exec "$0" "$@"
-}
-
-
-uninstall_venv() {
-    if [[ ! -d "${VENV_DIR}" ]]; then
-        dialog --title "Nothing to Uninstall" --msgbox "\nVirtual environment not found.\n\nNothing to uninstall." 7 55 > "$CURR_TTY"
-        return
-    fi
-    
-    dialog --title "Confirm Uninstall" --yesno "\nAre you sure you want to uninstall?\n\nThis will remove the virtual environment at:\n${VENV_DIR}" 9 60 > "$CURR_TTY"
-    
-    if [ $? -ne 0 ]; then
-        return
-    fi
-    
-    dialog --title "Uninstalling" --infobox "\nRemoving virtual environment..." 5 55 > "$CURR_TTY"
-    sleep 1
-    
-    rm -rf "${VENV_DIR}"
-    
-    dialog --title "Complete" --msgbox "\nUninstall complete!\n\nVirtual environment has been removed." 7 55 > "$CURR_TTY"
-}
-
-# --- Main Menu ---
-MainMenu() {
-  while true; do
-    mainselection=(dialog \
-        --backtitle "$BACKTITLE" \
-        --title "Terminal Installer - Main Menu" \
-        --clear \
-        --cancel-label "Exit" \
-        --menu "Select an option:" 13 70 10)
-    mainoptions=(
-        1 "Install dependencies"
-        2 "Run app"
-        3 "Uninstall (remove venv)"
-        4 "Exit"
-    )
-    mainchoices=$("${mainselection[@]}" "${mainoptions[@]}" 2>&1 > "$CURR_TTY")
-    
-    if [[ $? != 0 ]]; then
-      exit_script
-    fi
-
-    case $mainchoices in
-        1) install_dependencies ;;
-        2) run_app ;;      
-        3) uninstall_venv ;;
-        4) exit_script ;;
-        *) exit_script ;;
-    esac
-  done
+    exit_script
 }
 
 # --- Joystick Control Setup ---
@@ -319,5 +268,13 @@ dialog --clear
 
 trap exit_script EXIT SIGINT SIGTERM
 
-# Launch the main menu
-MainMenu
+# Install dependencies if needed, then launch
+if ! deps_ok; then
+    install_dependencies || exit_script
+    if ! deps_ok; then
+        dialog --title "Error" --msgbox "\nDependencies still missing after install.\n\nCannot launch app." 8 55 > "$CURR_TTY"
+        exit_script
+    fi
+fi
+
+run_app
