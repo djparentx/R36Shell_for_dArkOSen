@@ -62,6 +62,11 @@ detect_resolution() {
         h="${mode#*x}"
     fi
     [[ "$w" =~ ^[0-9]+$ && "$h" =~ ^[0-9]+$ ]] || return 1
+    if (( h > w )); then
+        local t="$w"
+        w="$h"
+        h="$t"
+    fi
     sed -i -E "s/(\"screen_width\": )[0-9]+/\1${w}/; s/(\"screen_height\": )[0-9]+/\1${h}/" "$CONFIG_FILE"
 }
 
